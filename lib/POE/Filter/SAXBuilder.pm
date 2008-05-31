@@ -2,7 +2,7 @@ package POE::Filter::SAXBuilder;
 use strict;
 use warnings;
 
-our $VERSION = '0.01_01';
+our $VERSION = '0.02_01';
 
 use Error;
 use XML::LibXML;
@@ -34,6 +34,30 @@ To make the potentially time-consuming parsing process more compatible with
 the cooperative nature of POE, the filter will return a series of document
 fragments instead of the entire DOM tree in one go.
 
+There are two modes:
+
+=over 2
+
+=item 
+
+The first builds the entire DOM tree, and just gives you pointers into the
+tree at various points. This is useful if you know the xml document you are
+parsing is not too big, and you want to be able to run XPATH queries on the
+entire tree for example.
+
+=item
+
+The second mode splits up the DOM tree into document fragments and returns
+each seperately. You could still build a complete DOM tree from these
+fragments. Sometimes that isn't possible, because you're receiving a possibly
+endless tree (for example when processing an XMPP stream)
+
+=back
+
+You can control how often you get events by specifying till how deep into
+the tree you want to receive notifications. This also controls the size of
+the document fragments you'll receive when you're using the second,
+'detached' mode.
 
 =head1 PUBLIC METHODS
 
@@ -42,7 +66,7 @@ only covers things that are special to POE::Filter::SAXBuilder.
 
 =head2 new()
 
-The constructor accepts a total of two arguments that both all optional:
+The constructor accepts two arguments which are both optional:
 
 =over 4
 
@@ -53,9 +77,11 @@ from the wheel before the Filter was instantiated)
 
 =item handler
 
-a SAX Handler that implements the methods 'start_element', 'end_element',
-(See POE::Filter::SAXBuilder::Builder for further information on
-creating your own SAX Handler)
+a SAX Handler that builds your data structures from SAX events. The
+default is L<POE::Filter::SAXBuilder::Builder>, which creates DOM tree
+fragments. But you could create any sort of object/structure you like.
+
+=back
 
 =cut
 
@@ -81,8 +107,7 @@ sub new {
    return $self;
 }
 
-sub DESTROY()
-{
+sub DESTROY {
    my $self = shift;
 
    delete $self->{'buffer'};
@@ -91,8 +116,7 @@ sub DESTROY()
    delete $self->{'handler'};
 }
 
-sub get_one_start()
-{
+sub get_one_start {
    my ($self, $raw) = @_;
    if (defined $raw) {
       foreach my $raw_data (@$raw) {
@@ -119,8 +143,7 @@ sub reset_parser {
    $self->{handler}->reset;
 }
 
-sub get_one
-{
+sub get_one {
    my ($self) = @_;
 
    if($self->{'handler'}->finished_nodes())
@@ -136,31 +159,22 @@ sub get_one
 
 	 next unless($line);
 
-	 eval
-	 {
-	    #$line =~ s/\x{d}\x{a}//go;
-	    #$line =~ s/\x{a}\x{d}//go;
-	    #chomp($line);
+	 eval {
 	    $self->{'parser'}->parse_chunk($line);
-
 	 };
-
-	 if($@)
-	 {
-	    my $err_text = $@;
-	    my $err = Error::Simple->new($err_text);
-	    $self->reset_parser;
-	    return [$err];
-	    #&{ $self->{'callback'} }($@);
-	 }
+	    if($@) {
+	       my $err_text = $@;
+	       my $err = Error::Simple->new($err_text);
+	       $self->reset_parser;
+	       return [$err];
+	    }
 
 	 if (defined $self->{'handler'}->{'EOD'}) {
 	    $self->{'parser'}->parse_chunk("", 1);
 	    $self->reset_parser;
 	    delete $self->{'handler'}->{'EOD'};
 	 }
-	 if($self->{'handler'}->finished_nodes())
-	 {
+	 if($self->{'handler'}->finished_nodes()) {
 	    my $node = $self->{'handler'}->get_node();
 	    return [$node];
 	 }
@@ -169,8 +183,7 @@ sub get_one
    }
 }
 
-sub put()
-{
+sub put() {
    my($self, $nodes) = @_;
 
    my $output = [];
@@ -199,11 +212,11 @@ If all else fails, use the source.
 
 =head1 AUTHOR
 
-Martijn van Beers  <martijn@eekeek.org>
+Martijn van Beers  <martijn@cpan.org>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2006-2007 Martijn van Beers.
+Copyright (c) 2006-2008 Martijn van Beers.
 
 Based on POE::Filter::XML, which is Copyright (c) 2003 Nicholas Perez.
 

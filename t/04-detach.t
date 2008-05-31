@@ -6,11 +6,16 @@ use warnings;
 our (@doc);
 BEGIN {
   @doc = (
-  	html => 'Document',
-	head => 'Document',
-	title => 'DocumentFragment',
-	body => 'Document',
-	h1 => 'DocumentFragment',
+	'#document'	=> 'Document',
+  	html		=> 'Document',
+	head		=> 'Document',
+	'#text'		=> 'DocumentFragment',
+	title		=> 'DocumentFragment',
+	'#text'		=> 'DocumentFragment',
+	body		=> 'Document',
+	'#text'		=> 'DocumentFragment',
+	h1		=> 'DocumentFragment',
+	'#text'		=> 'DocumentFragment',
 	);
 }
 
@@ -72,8 +77,13 @@ sub input {
   my $expected = shift @doc;
   my $owner_type = shift @doc;
 
-  is($data->nodeName, $expected, "got correct element ($expected)");
   isa_ok($data->getOwner, "XML::LibXML::$owner_type");
+  if ($owner_type eq 'DocumentFragment') {
+  	is ($data->firstChild->nodeName, $expected,
+		"got correct element ($expected)");
+  } else {
+  	is($data->nodeName, $expected, "got correct element ($expected)");
+  }
 }
 
 sub error {

@@ -1,8 +1,25 @@
+package POE::Filter::SAXBuilder::Builder::Node;
+use strict;
+use warnings;
+
+use base 'XML::LibXML::Element';
+use Class::InsideOut qw(public);
+
+public special => my %special;
+public level => my %level;
+
+sub DEMOLISH {
+   my $self = shift;
+
+   $self->SUPER::DESTROY;
+}
+
 package POE::Filter::SAXBuilder::Builder;
 use strict;
 use warnings;
 
 use base qw(XML::LibXML::SAX::Builder);
+use Class::InsideOut qw(register);
 
 our $VERSION = '0.01';
 
@@ -38,7 +55,41 @@ sub new {
    my $self = $class->SUPER::new(@_, depth => -1);
    $self->{'godepth'} = 1 unless defined ($self->{'godepth'});
    $self->{'detach'} = 0 unless defined ($self->{'detach'});
+   $self->{'finished'} = [];
    return $self;
+}
+
+#FIXME: see if we can only do this when there's an xml declaration?
+sub start_document {
+   my $self = shift;
+
+   $self->SUPER::start_document(@_);
+   push (@{$self->{'finished'}}, $self->{'DOM'});
+}
+
+sub _register {
+      my ($noderef, $depth, $special) = @_;
+      register ($$noderef, 'POE::Filter::SAXBuilder::Builder::Node');
+      $$noderef->level($depth);
+      $$noderef->special($special) if (defined $special);
+}
+
+sub characters {
+   my $self = shift;
+   my $detached;
+
+   if ($self->{detach} and $self->{depth} == $self->{godepth} - 1) {
+      $detached = $self->{Parent};
+      my $node = $self->{Parent} = XML::LibXML::DocumentFragment->new;
+      _register (\$node, $self->{'depth'} + 1);
+   }
+
+   $self->SUPER::characters(@_);
+
+   if ($detached) {
+      push (@{$self->{finished}}, $self->{Parent});
+      $self->{Parent} = $detached;
+   }
 }
 
 sub start_element {
@@ -47,34 +98,39 @@ sub start_element {
    $self->{'depth'}++;
 
    if ($self->{'detach'} and $self->{'depth'} == $self->{'godepth'}) {
-	$self->{'detached'} = $self->{Parent};
-   	$self->{Parent} = XML::LibXML::DocumentFragment->new();
+      $self->{'detached'} = $self->{Parent};
+      my $frag = $self->{Parent} = XML::LibXML::DocumentFragment->new();
+      _register (\$frag, $self->{'depth'});
    }
 
    $self->SUPER::start_element(@_);
+   my $node = $self->{Parent};
 
    # Announce elements with a lower depth than we're interested
    # in, even if they're not done yet.
    # FIXME: do we really want this?
    if ($self->{'depth'} < $self->{'godepth'}) {	    
-      push(@{$self->{'finished'}}, $self->{Parent});
-      $self->{'count'}++;
+      if ($self->{detach}) {
+	 _register (\$node, $self->{'depth'}, 'Start');
+      }
+      push(@{$self->{'finished'}}, $node);
    }
 }
 
 sub end_element {
    my $self = shift;
 
-   if ($self->{detach} and $self->{depth} + 1 == $self->{godepth}) {
-	$self->{Parent} = delete $self->{detached};
-   }
    my $node = $self->{Parent};
 
    $self->SUPER::end_element(@_);
 
    if($self->{'depth'} == $self->{'godepth'}) {
+      if ($self->{detached}) {
+	 $node = $self->{Parent};
+	 _register (\$node, $self->{'depth'}, 'End');
+	 $self->{Parent} = delete $self->{detached};
+      }
       push(@{$self->{'finished'}}, $node);
-      $self->{'count'}++;
    }
    $self->{'depth'}--;
 
@@ -87,14 +143,13 @@ sub end_element {
 sub get_node()
 {
    my $self = shift;
-   $self->{'count'}--;
    return shift(@{$self->{'finished'}});
 }
 
 sub finished_nodes()
 {
    my $self = shift;
-   return $self->{'count'};
+   return scalar @{$self->{'finished'}};
 }
 
 sub reset {

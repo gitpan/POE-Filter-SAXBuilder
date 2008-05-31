@@ -6,7 +6,7 @@ use warnings;
 our @doc;
 BEGIN {
   @doc = (qw(
-  	html head title body h1
+  	#document html head title body h1
 	));
 }
 

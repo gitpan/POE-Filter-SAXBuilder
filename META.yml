@@ -1,19 +1,23 @@
 ---
-name: POE-Filter-SAXBuilder
-version: 0.01_01
-author:
-  - 'Martijn van Beers  <martijn@eekeek.org>'
 abstract: 'A POE Filter for parsing XML with L<XML::LibXML>'
+author:
+  - 'Martijn van Beers  <martijn@cpan.org>'
+build_requires:
+  Test::More: 0
+  Test::Pod: 1.00
+distribution_type: module
+generated_by: 'Module::Install version 0.72'
 license: gpl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.3.html
+  version: 1.3
+name: POE-Filter-SAXBuilder
+no_index:
+  directory:
+    - inc
+    - t
 requires:
-  POE: 0.34_01
+  Error: 0.15
+  POE: 1.0
   XML::LibXML: 1.63
-  perl: 5.8.1
-provides:
-  POE::Filter::SAXBuilder:
-    file: lib/POE/Filter/SAXBuilder.pm
-    version: 0.01_01
-  POE::Filter::SAXBuilder::Builder:
-    file: lib/POE/Filter/SAXBuilder/Builder.pm
-    version: 0.01
-generated_by: Module::Build version 0.26
+version: 0.02_01

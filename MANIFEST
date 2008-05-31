@@ -1,4 +1,13 @@
-Build.PL
+Changes
+samples/rss.pl
+inc/Module/Install.pm
+inc/Module/Install/Base.pm
+inc/Module/Install/Can.pm
+inc/Module/Install/Fetch.pm
+inc/Module/Install/Makefile.pm
+inc/Module/Install/Metadata.pm
+inc/Module/Install/Win32.pm
+inc/Module/Install/WriteAll.pm
 lib/POE/Filter/SAXBuilder.pm
 lib/POE/Filter/SAXBuilder/Builder.pm
 Makefile.PL
@@ -7,5 +16,6 @@ META.yml
 README
 t/01-document.t
 t/02-multiple.t
-t/03-invalid.t
 t/04-detach.t
+t/99-pod.t
+TODO
