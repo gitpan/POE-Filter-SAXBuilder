@@ -2,7 +2,7 @@ package POE::Filter::SAXBuilder;
 use strict;
 use warnings;
 
-our $VERSION = '0.02_01';
+our $VERSION = '0.03_01';
 
 use Error;
 use XML::LibXML;

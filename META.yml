@@ -17,7 +17,8 @@ no_index:
     - inc
     - t
 requires:
+  Class::InsideOut: 0
   Error: 0.15
   POE: 1.0
   XML::LibXML: 1.63
-version: 0.02_01
+version: 0.03_01
