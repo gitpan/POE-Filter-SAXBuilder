@@ -2,7 +2,8 @@ package POE::Filter::SAXBuilder;
 use strict;
 use warnings;
 
-our $VERSION = '0.03_01';
+our $VERSION = '0.04_01';
+use base qw(POE::Filter);
 
 use Error;
 use XML::LibXML;
@@ -64,7 +65,7 @@ the document fragments you'll receive when you're using the second,
 POE::Filter::SAXBuilder follows the L<POE::Filter> API. This documentation
 only covers things that are special to POE::Filter::SAXBuilder.
 
-=head2 new()
+=head2 new
 
 The constructor accepts two arguments which are both optional:
 
@@ -107,6 +108,30 @@ sub new {
    return $self;
 }
 
+sub clone {
+   my $self = shift;
+
+   my $handler = $self->{'handler'}->clone;
+   my $new_self = {
+      parser => XML::LibXML->new (Handler => $handler),
+      handler => $handler,
+      buffer => $self->{'buffer'},
+   };
+
+   return bless $new_self, ref $self;
+}
+
+sub get_pending {
+   my $self = shift;
+
+   if (@{$self->{'buffer'}} > 0) {
+      my $data = @{$self->{'buffer'}};
+      warn "returning $data";
+      return [ $data ];
+   }
+   return undef;
+}
+
 sub DESTROY {
    my $self = shift;
 
@@ -128,19 +153,25 @@ sub get_one_start {
    }
 }
 
+=head2 reset_parser
+
+Resets the filter so it is ready to parse a new document from the beginning.
+
+=cut
+
 sub reset_parser {
    my $self = shift;
 
    delete $self->{'parser'};
-   $self->{'parser'} = 
-      XML::LibXML->new (Handler => $self->{'handler'}),
 
    # we used lookahead to split up the lines, so the
    # newline at the end of a document is still in the buffer
    # if there is an XML declaration, it won't be at the
    # start of document if we don't remove it
-   $self->{'buffer'}->[0] =~ s/(\015?\012|\012\015?)//;
+   $self->{'buffer'}->[0] =~ s/(\015?\012|\012\015?)// if (@{$self->{'buffer'}});
    $self->{handler}->reset;
+   $self->{'parser'} = 
+      XML::LibXML->new (Handler => $self->{'handler'}),
 }
 
 sub get_one {
@@ -183,7 +214,7 @@ sub get_one {
    }
 }
 
-sub put() {
+sub put {
    my($self, $nodes) = @_;
 
    my $output = [];

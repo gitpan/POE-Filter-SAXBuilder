@@ -1,18 +1,54 @@
-package POE::Filter::SAXBuilder::Builder::Node;
+package POE::Filter::SAXBuilder::Builder::Element;
 use strict;
 use warnings;
 
-use base 'XML::LibXML::Element';
+use XML::LibXML;
+use base qw(XML::LibXML::Element);
 use Class::InsideOut qw(public);
 
 public special => my %special;
-public level => my %level;
 
-sub DEMOLISH {
+sub toString {
    my $self = shift;
 
-   $self->SUPER::DESTROY;
+   my $str = '';
+   my $special = $self->special ? $self->special : '';
+   if ($special eq 'Start') {
+      $str .= '<' . $self->nodeName;
+      foreach my $attr ($self->attributes) {
+        $str .= sprintf (" %s=\"%s\"", $attr->nodeName, $attr->getValue);
+      }
+      $str .= '>';
+   }
+   elsif ($special eq 'End') {
+      $str = sprintf ("</%s>", $self->nodeName);
+   }
+
+   return $str;
 }
+
+package POE::Filter::SAXBuilder::Builder::Document;
+use strict;
+use warnings;
+
+use XML::LibXML;
+use base qw(XML::LibXML::Document);
+
+sub toString {
+   my $self = shift;
+
+   my $str = '<?xml';
+   if (my $v = $self->getVersion) {
+      $str .= " version=\"" . $v . "\"";
+   }
+   if (my $e = $self->getEncoding) {
+      $str .= " encoding=\"" . $e . "\"";
+   }
+   $str .= '?>';
+   
+   return $str;
+}
+
 
 package POE::Filter::SAXBuilder::Builder;
 use strict;
@@ -59,19 +95,85 @@ sub new {
    return $self;
 }
 
+=head2 clone
+
+creates a new instance of the Builder with the same settings.
+
+=cut
+
+sub clone {
+   my $self = shift;
+
+   my $class = ref $self;
+   my $new_self = $class->new(
+      depth => -1,
+      godepth => $self->{'godepth'},
+      detach => $self->{'detach'},
+   );
+
+   return $new_self;
+}
+
+=head2 get_node
+
+Returns a single node from the list of nodes that have finished building.
+
+=cut
+
+sub get_node {
+   my $self = shift;
+   return shift(@{$self->{'finished'}});
+}
+
+=head2 finished_nodes
+
+Returns the number of nodes that have been completely built.
+
+=cut
+
+sub finished_nodes {
+   my $self = shift;
+   return scalar @{$self->{'finished'}};
+}
+
+=head2 reset
+
+Set the Builder back to its start state
+
+=cut
+
+sub reset {
+   my $self = shift;
+
+   $self->done;
+   $self->{depth} = -1;
+}
+
+sub _register {
+      my ($noderef, $special) = @_;
+      register ($$noderef, 'POE::Filter::SAXBuilder::Builder::Element');
+      $$noderef->special($special) if (defined $special);
+}
+
+#
+# Below are the SAX2 methods
+#
+
+sub xml_decl {
+   my $self = shift;
+
+   # TODO: use this to mark whether we print the xml decl or not?
+   $self->SUPER::xml_decl(@_);
+}
+
 #FIXME: see if we can only do this when there's an xml declaration?
 sub start_document {
    my $self = shift;
 
    $self->SUPER::start_document(@_);
-   push (@{$self->{'finished'}}, $self->{'DOM'});
-}
 
-sub _register {
-      my ($noderef, $depth, $special) = @_;
-      register ($$noderef, 'POE::Filter::SAXBuilder::Builder::Node');
-      $$noderef->level($depth);
-      $$noderef->special($special) if (defined $special);
+   bless ($self->{'DOM'}, 'POE::Filter::SAXBuilder::Builder::Document');
+   push (@{$self->{'finished'}}, $self->{'DOM'});
 }
 
 sub characters {
@@ -81,7 +183,6 @@ sub characters {
    if ($self->{detach} and $self->{depth} == $self->{godepth} - 1) {
       $detached = $self->{Parent};
       my $node = $self->{Parent} = XML::LibXML::DocumentFragment->new;
-      _register (\$node, $self->{'depth'} + 1);
    }
 
    $self->SUPER::characters(@_);
@@ -100,7 +201,6 @@ sub start_element {
    if ($self->{'detach'} and $self->{'depth'} == $self->{'godepth'}) {
       $self->{'detached'} = $self->{Parent};
       my $frag = $self->{Parent} = XML::LibXML::DocumentFragment->new();
-      _register (\$frag, $self->{'depth'});
    }
 
    $self->SUPER::start_element(@_);
@@ -111,10 +211,11 @@ sub start_element {
    # FIXME: do we really want this?
    if ($self->{'depth'} < $self->{'godepth'}) {	    
       if ($self->{detach}) {
-	 _register (\$node, $self->{'depth'}, 'Start');
+	 _register (\$node, 'Start');
       }
       push(@{$self->{'finished'}}, $node);
    }
+   return $node;
 }
 
 sub end_element {
@@ -127,11 +228,16 @@ sub end_element {
    if($self->{'depth'} == $self->{'godepth'}) {
       if ($self->{detached}) {
 	 $node = $self->{Parent};
-	 _register (\$node, $self->{'depth'}, 'End');
 	 $self->{Parent} = delete $self->{detached};
       }
       push(@{$self->{'finished'}}, $node);
    }
+   if ($self->{'depth'} < $self->{'godepth'}) {
+      $node = $node->cloneNode;
+      _register (\$node, 'End');
+      push(@{$self->{'finished'}}, $node);
+   }
+
    $self->{'depth'}--;
 
    # flag that we've reached the end of the document
@@ -140,23 +246,12 @@ sub end_element {
    }
 }
 
-sub get_node()
-{
-   my $self = shift;
-   return shift(@{$self->{'finished'}});
-}
-
-sub finished_nodes()
-{
-   my $self = shift;
-   return scalar @{$self->{'finished'}};
-}
-
-sub reset {
-   my $self = shift;
-
-   $self->done;
-   $self->{depth} = -1;
-}
-
 1;
+
+=head1 CAVEATS
+
+You easily get segfaults if you use xpath on nodes that aren't in a document.
+This is a problem in XML::LibXML. Until the problem is fixed, make sure you
+put anything you want to run xpath on inside an XML::LibXML::Document first.
+
+=cut

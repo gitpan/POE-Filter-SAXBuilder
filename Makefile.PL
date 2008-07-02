@@ -10,7 +10,9 @@ requires	'Error'			=> '0.15';
 requires	'Class::InsideOut'	=> '0';
 
 test_requires	'Test::More'	=> '0';
-test_requires	'Test::Pod'	=> '1.00';
+author_tests('t/author');
+
+auto_provides;
 
 WriteAll;
 

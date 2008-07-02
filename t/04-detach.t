@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-our (@doc);
+our ($count, @doc);
 BEGIN {
   @doc = (
 	'#document'	=> 'Document',
@@ -12,14 +12,20 @@ BEGIN {
 	'#text'		=> 'DocumentFragment',
 	title		=> 'DocumentFragment',
 	'#text'		=> 'DocumentFragment',
+	head		=> 'Document',
 	body		=> 'Document',
 	'#text'		=> 'DocumentFragment',
 	h1		=> 'DocumentFragment',
 	'#text'		=> 'DocumentFragment',
+	body		=> 'Document',
+  	html		=> 'Document',
 	);
-}
 
-use Test::More tests => @doc + 2;
+$count = @doc + 2;
+my @on_doc = grep {$_ eq 'Document'} @doc;
+$count -= (@on_doc - 1) / 2;
+}
+use Test::More tests => $count;
 #use Test::More qw(no_plan);
 
 use POE qw(
@@ -76,13 +82,17 @@ sub input {
 
   my $expected = shift @doc;
   my $owner_type = shift @doc;
+  #warn $data, $data->nodeName, $expected, $owner_type;
 
-  isa_ok($data->getOwner, "XML::LibXML::$owner_type");
   if ($owner_type eq 'DocumentFragment') {
   	is ($data->firstChild->nodeName, $expected,
 		"got correct element ($expected)");
   } else {
+	my $doc = $data->getOwner;
   	is($data->nodeName, $expected, "got correct element ($expected)");
+  }
+  unless ($data->can('special') and $data->special and $data->special eq 'End') {
+  	isa_ok($data->getOwner, "XML::LibXML::$owner_type", "owner");
   }
 }
 
